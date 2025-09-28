@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fa">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>جدول قرعه‌کشی — چهار حالته</title>
+<style>
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",Tahoma;direction:rtl;padding:12px;background:#f7f7f9}
+  h1{font-size:20px;margin:6px 0 12px}
+  .controls{margin-bottom:12px}
+  textarea{width:100%;height:120px;padding:8px;border-radius:6px}
+  button{padding:8px 10px;margin-top:6px;border-radius:8px;border:1px solid #aaa;background:#fff}
+  table{border-collapse:collapse;width:100%;background:#fff;border-radius:8px;overflow:hidden}
+  th,td{border:1px solid #e2e2e2;padding:6px;text-align:center;min-width:28px}
+  th.name{position:sticky;left:0;background:#fff;z-index:2;min-width:120px}
+  td.cell{cursor:pointer;user-select:none;transition:background 0.2s,color 0.2s;font-size:16px}
+  td.state-0{background:#fff;color:#000}
+  td.state-1{background:#fff59d;color:#f57f17} /* زرد */
+  td.state-2{background:#a5d6a7;color:#1b5e20} /* سبز */
+  td.state-3{background:#ef9a9a;color:#b71c1c} /* قرمز */
+  .footer{margin-top:10px;font-size:13px;color:#555}
+</style>
+</head>
+<body>
+<h1>جدول قرعه‌کشی — چهار حالته</h1>
+<div class="controls">
+  <label>اسامی (هر خط یک اسم):</label><br>
+  <textarea id="names"></textarea><br>
+  <label>تعداد ستون‌ها: <input type="number" id="cols" value="30" min="1" max="200" style="width:70px"></label><br>
+  <button id="build">ساخت جدول</button>
+</div>
+<div id="tablewrap"></div>
+<div class="footer">روی هر خانه بزن تا بین حالت‌ها (خالی → زرد ✔ → سبز ✔ → قرمز ✘) بچرخد. تغییرات ذخیره می‌شوند.</div>
+<script>
+(function(){
+  const NEW_KEY = "winners_table_fourstates_v1";
+  const OLD_KEY = "winners_table_editable_v1";
+  let state = {names:[], cols:30, checks:{}};
+
+  function migrate(oldState){
+    // oldState.checks[r][c] = boolean
+    const newChecks = {};
+    Object.keys(oldState.checks||{}).forEach(r=>{
+      newChecks[r] = oldState.checks[r].map(v => v ? 1 : 0);
+    });
+    return {names:oldState.names||[], cols:oldState.cols||30, checks:newChecks};
+  }
+
+  function load(){
+    try{
+      const saved = localStorage.getItem(NEW_KEY);
+      if(saved){
+        state = JSON.parse(saved);
+      } else {
+        const oldSaved = localStorage.getItem(OLD_KEY);
+        if(oldSaved){
+          try{
+            const old = JSON.parse(oldSaved);
+            state = migrate(old);
+            save();
+          }catch(e){}
+        }
+      }
+    }catch(e){}
+    document.getElementById("names").value = (state.names||[]).join("\n");
+    document.getElementById("cols").value = state.cols||30;
+  }
+  function save(){
+    localStorage.setItem(NEW_KEY, JSON.stringify(state));
+  }
+
+  function build(){
+    const rawNames = document.getElementById("names").value.trim().split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    const cols = parseInt(document.getElementById("cols").value)||30;
+    state.names = rawNames; state.cols = cols;
+    rawNames.forEach((n,r)=>{
+      if(!state.checks[r]) state.checks[r]=Array(cols).fill(0);
+      else {
+        state.checks[r] = state.checks[r].slice(0,cols);
+        while(state.checks[r].length<cols) state.checks[r].push(0);
+      }
+    });
+    Object.keys(state.checks).forEach(k=>{if(k>=rawNames.length) delete state.checks[k];});
+    render(); save();
+  }
+
+  function render(){
+    const wrap=document.getElementById("tablewrap");
+    wrap.innerHTML="";
+    if(state.names.length===0) return;
+    const tbl=document.createElement("table");
+    const thead=document.createElement("thead");
+    const headRow=document.createElement("tr");
+    const thName=document.createElement("th"); thName.className="name"; thName.textContent="اسم"; headRow.appendChild(thName);
+    for(let c=1;c<=state.cols;c++){const th=document.createElement("th");th.textContent=c;headRow.appendChild(th);}
+    thead.appendChild(headRow); tbl.appendChild(thead);
+    const tbody=document.createElement("tbody");
+    state.names.forEach((name,r)=>{
+      const tr=document.createElement("tr");
+      const th=document.createElement("th");th.className="name";th.textContent=name;tr.appendChild(th);
+      for(let c=0;c<state.cols;c++){
+        const td=document.createElement("td");td.className="cell";
+        const val=(state.checks[r]&&state.checks[r][c])||0;
+        setCellState(td,val);
+        td.addEventListener("click",()=>{
+          let cur=state.checks[r][c]||0;
+          cur=(cur+1)%4;
+          state.checks[r][c]=cur;
+          setCellState(td,cur);
+          save();
+        });
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    wrap.appendChild(tbl);
+  }
+
+  function setCellState(td,val){
+    td.className="cell state-"+val;
+    if(val===0) td.textContent="";
+    if(val===1) td.textContent="✔";
+    if(val===2) td.textContent="✔";
+    if(val===3) td.textContent="✘";
+  }
+
+  document.getElementById("build").addEventListener("click", build);
+  load(); if(state.names.length) render();
+})();
+</script>
+</body>
+</html>
